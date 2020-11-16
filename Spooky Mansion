@@ -1,0 +1,225 @@
+import json
+import os
+import time
+import random
+
+def main():
+    # TODO: allow them to choose from multiple JSON files?
+    for name in os.listdir():
+        if name.endswith('.json'):
+            print(name)
+    file = input('select a game: ')    #delete hashtag to select from ox.listdir()
+    
+    
+    with open('spooky_mansion.json') as fp:     #'spooky_mansion.json'  #file
+        game = json.load(fp)
+    print_instructions()
+    print("You are about to play '{}'! Good luck!".format(game['__metadata__']['title']))
+    print("")
+    play(game)
+
+
+def play(rooms):
+    start_time = time.time()
+    # Where are we? Look in __metadata__ for the room we should start in first.
+    current_place = rooms['__metadata__']['start']
+    
+    #cat
+    cat_place = rooms['__metadata__']["Cat"]
+    
+    #ghost
+    
+    # The things the player has collected.
+    stuff = ['Cell Phone; no signal or battery...']
+    
+    visited = {}          #Added: dictionary visited: rooms player has visited
+    while True:
+        # Figure out what room we're in -- current_place is a name.
+        here = rooms[current_place]
+        # Print the description.
+        print(here["description"])
+        #print(here) = tour. shows dictionary of room
+        
+        
+        #cat
+        
+        # the cat follows you if you have food  
+        if ['cat food'] in stuff:
+            cat_place = current_place 
+        else:
+            cat_place = random.choice(list(rooms)) # sets location of cat
+        
+        if cat_place == current_place:      #if cat is in same room prints
+            print("there is a cat here!")
+            
+       #Ghost
+        if ["bone"] in stuff:
+            ghost_place = rooms ['__metadata__']["Ghost"]
+            ghost_place = random.choice(list(rooms))
+            print(ghost_place)
+            #ghost randomly goes around haunted house, if it is in the same room it kills you
+            if ghost_place == current_place:
+                print(" the ghost has killed you!")
+                end_time = time.time()
+                print("time played:",int(end_time - start_time), "seconds")
+                break 
+        
+            
+         #Added: visited room added to visited. tells player they have been before
+        if current_place in visited:                  
+            print("you've been in this room before...")
+        visited[current_place] = True
+        # TODO: print any available items in the room...
+        print("you look around for something you can use. You see: ", here["items"])
+       # e.g., There is a Mansion Key.
+        
+
+        # Is this a game-over?
+        if here.get("ends_game", False):
+            end_time = time.time() #sets end time
+            print("time played:",int(end_time - start_time), "seconds") # finds diff b/t start and end
+            break
+
+        # Allow the user to choose an exit:
+        usable_exits = find_usable_exits(here, stuff)
+        unusable_exits = find_unusable_exits(here, stuff)
+    
+        # Print out numbers for them to choose:
+        for i, exit in enumerate(usable_exits):
+            print("  {}. {}".format(i+1, exit['description']))
+        for i, exit in enumerate(unusable_exits):
+            print("  {}. {}".format(i+4, exit['description']), "this way is locked")
+        
+
+        # See what they typed:
+        action = input("> ").lower().strip()
+
+        # If they type any variant of quit; exit the game.
+        if action in ["quit", "escape", "exit", "q"]:
+            print("You quit.")
+            end_time = time.time() #sets end time
+            print("time played:",int(end_time - start_time), "seconds") #prints diff b/t start and end
+            break
+        #type help prints instructions:
+        
+        if action in ["help"]:
+            print_instructions()
+            continue      # continue playing game after printing instructions
+            
+        
+        # TODO: if they type "stuff", print any items they have (check the stuff list!)
+        if action in ["stuff"]:
+            if len(stuff) >= 1: #prints stuff if stuff has objects, else print have nothing
+                print(stuff)
+            else:
+                print("You have nothing.")
+            continue
+        
+        
+        # TODO: if they type "take", grab any items in the room.
+        if action in ["take"]:
+            if len(here["items"]) >= 1:
+                item = here["items"].copy()
+                stuff.append(item)
+                print(stuff)
+                print("you picked up", item)
+                here["items"].pop(0)
+            else:
+                print("nothing here")
+            continue
+        
+        #TODO: if they type drop, select an item to leave in room
+        if action == "drop":
+            if len(stuff) >= 1:
+                print(stuff)
+                print("choose an item to drop")
+                for i, exit in enumerate([stuff]):
+                    print("  {}. {}".format(i+1, stuff))
+                    action = input("> ").lower().strip()
+                    here["items"].append(stuff[i])
+                    print("you have dropped", stuff[i])
+                    continue
+            else:
+                print("you have nothing to drop")  
+        # TODO: if they type "search", or "find", look through any exits in the room that might be hidden, and make them not hidden anymore!
+        
+        if action in ["search"]:
+            print("you search the room...")
+            for exit in here['exits']:
+                if exit.get("hidden", True):
+                    bool([exit])
+                    continue
+                    
+            
+            
+        # Try to turn their action into an exit, by number.
+        
+        try:
+            num = int(action) - 1
+            selected = usable_exits[num]
+            current_place = selected['destination']
+            print("...")
+        except:
+            print("I don't understand '{}'...".format(action))
+        
+    print("")
+    print("")
+    print("=== GAME OVER ===")
+
+def find_usable_exits(room, stuff):
+    """
+    Given a room, and the player's stuff, find a list of exits that they can use right now.
+    That means the exits must not be hidden, and if they require a key, the player has it.
+
+    RETURNS
+     - a list of exits that are visible (not hidden) and don't require a key!
+    """
+    usable = []
+    
+    for exit in room['exits']:
+        if exit.get("hidden", False):
+            continue
+        if "required_key" in exit:
+            if exit["required_key"] in stuff:
+                usable.append(exit)
+            else:
+                continue
+        usable.append(exit)
+    return usable
+
+
+def find_unusable_exits(room, stuff):    #this function finds locked doors that are currently unusable
+    """
+    Given a room, and the player's stuff, find a list of exits that they can use right now.
+    That means the exits must not be hidden, and if they require a key, the player has it.
+
+    RETURNS
+     - a list of exits that are visible (not hidden) and don't require a key!
+    """
+    unusable = []
+    
+    for exit in room['exits']:
+        if exit.get("hidden", False):
+            continue
+        if "required_key" in exit:
+            if exit["required_key"] in stuff:
+                continue
+            else:
+                unusable.append(exit)        
+    return unusable
+
+
+def print_instructions():
+    print("=== Instructions ===")
+    print(" - Type a number to select an exit.")
+    print(" - Type 'stuff' to see what you're carrying.")
+    print(" - Type 'take' to pick up an item.")
+    print(" - Type 'quit' to exit the game.")
+    print(" - Type 'search' to take a deeper look at a room.")
+    print(" - Type 'help' to review instructions")
+    print(" - Type 'drop' to drop selected items")
+    print("=== Instructions ===")
+    print("")
+
+if __name__ == '__main__':
+    main()
